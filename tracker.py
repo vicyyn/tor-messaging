@@ -1,39 +1,26 @@
+#/usr/bin/python3
+
 import socket
 import pickle
 
 class Tracker:
     def __init__(self):
-        # Create a socket object
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Get the local hostname
-        self.host = socket.gethostname()
-
-        # Set the port number
-        self.port = 12345
-
-        # Bind the socket to the host and port
-        self.sock.bind((self.host, self.port))
-
-        # Listen for incoming connections
+        self.sock.bind(('localhost', 8000))
         self.sock.listen()
-
-        # Create a list to store the connections
         self.peers = []
+        print("tracker initialized")
 
     def run(self):
+        print("listening for peers")
         while True:
-            # Accept an incoming connection
             connection , address = self.sock.accept()
-
-            # Store the connection's address and port
-            self.peers.append(address)
-            data = pickle.dumps(self.peers)
-            connection.sendall(data)
-            print("new peer added",connection);
+            print("new peer connected",address);
+            connection.sendall(pickle.dumps(self.peers))
+            print("sent peers to:",address)
+            peer = pickle.loads(connection.recv(4096))
+            self.peers.append(peer)
+            print("received peer socket:",peer)
         
-# Create a tracker
 tracker = Tracker()
-
-# Accept incoming connections indefinitely
 tracker.run()

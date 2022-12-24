@@ -1,64 +1,72 @@
+#/usr/bin/python3
+
 import socket
 import threading
 import pickle
-import random
+import sys
+
 
 class Peer:
     def __init__(self, tracker_address, tracker_port):
-        # Create a socket object
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Connect to the tracker
-        sock.connect((tracker_address, tracker_port))
-        print("connected to tracker")
-
-        # Get the peers
-        peers = sock.recv(4096)
-
-        self.peers = pickle.loads(peers)
-        print(f'Received peers: {self.peers}')
-        sock.close()
-
-        # Create a socket object
+        # Initialize Peer
+        self.peers = []
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Get the local hostname
-        self.host = socket.gethostname()
-
-        # Set the port number
-        self.port = random.randint(1024, 65535)
-
-        # Bind the socket to the host and port
-        self.sock.bind((self.host, self.port))
-
-        # Listen for incoming connections
+        self.sock.bind(('localhost', 0))
         self.sock.listen()
+        print("socket initialized")
 
-    def send_message(self):
-        pass
+        # Connect to Tracker
+        self.tracker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tracker.connect((tracker_address, tracker_port))
+        print("connected to tracker")
+        peers = pickle.loads(self.tracker.recv(4096))
+        print(f'peers: {peers}')
 
-    def receive_message(self):
+        # Send Peer Socket to Tracker
+        self.tracker.send(pickle.dumps(self.sock.getsockname()))
+
+        # listen for connections
+        accept_thread = threading.Thread(target=self.accept_peers,args=())
+        accept_thread.start()
+
+
+        # connect to peers
+        for peer in peers:
+            self.connect_peer(peer)
+
         while True:
-            message = self.sock.recv(4096)
-            print(f'Received response: {message.decode()}')
+            message = sys.stdin.readline().strip()
+            for peer in self.peers:
+                peer.send(message.encode())
 
-    def accept_peer(self):
+    def accept_peers(self):
         while True:
-            pass
+            peer_socket, peer_address = self.sock.accept()
+            print(f'peer connected: {peer_address}')
+            self.peers.append(peer_socket)
+            self.receive_peer(peer_socket)
 
+    def connect_peer(self,peer):
+        try:
+            sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            sock.connect(peer)
+            print("connected to peer:",peer)
+            self.peers.append(sock)
+            self.receive_peer(sock)
+        except:
+            print("connection failed:",peer)
+
+    def receive_peer(self,sock):
+        # receive from peers
+        def receive():
+            while True:
+                message = sock.recv(4096)
+                if not message:
+                    sock.close()
+                    break
+                print("received:",message.decode())
+        receive_thread = threading.Thread(target=receive,args=())
+        receive_thread.start()
 
 # Create a peer
-peer = Peer("localhost", 12345)
-
-# Create the threads
-send_thread = threading.Thread(target=peer.send_message)
-receive_thread = threading.Thread(target=peer.receive_message)
-
-# Start the threads
-send_thread.start()
-receive_thread.start()
-
-# Wait for the threads to finish
-send_thread.join()
-receive_thread.join()
-
+peer = Peer("localhost", 8000)
