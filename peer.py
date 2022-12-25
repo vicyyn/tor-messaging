@@ -4,6 +4,7 @@ import socket
 import threading
 import pickle
 import sys
+import uuid
 
 
 class Peer:
@@ -13,7 +14,8 @@ class Peer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
         self.sock.listen()
-        print("socket initialized")
+        self.address = uuid.uuid4().hex
+        print("socket initialized",self.address)
 
         # Connect to Tracker
         self.tracker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,12 +25,11 @@ class Peer:
         print(f'peers: {peers}')
 
         # Send Peer Socket to Tracker
-        self.tracker.send(pickle.dumps(self.sock.getsockname()))
+        self.tracker.send(pickle.dumps({self.sock.getsockname()}))
 
         # listen for connections
         accept_thread = threading.Thread(target=self.accept_peers,args=())
         accept_thread.start()
-
 
         # connect to peers
         for peer in peers:
@@ -51,7 +52,7 @@ class Peer:
             sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             sock.connect(peer)
             print("connected to peer:",peer)
-            self.peers.append(sock)
+            self.peers.append(pickle.loads(sock.recv(4096)))
             self.receive_peer(sock)
         except:
             print("connection failed:",peer)
@@ -67,6 +68,7 @@ class Peer:
                 print("received:",message.decode())
         receive_thread = threading.Thread(target=receive,args=())
         receive_thread.start()
+
 
 # Create a peer
 peer = Peer("localhost", 8000)
