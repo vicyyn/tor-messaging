@@ -14,6 +14,6 @@
 
 - Any data send between a node and the tracker or from node to node will obey this structure: [command] [data]
 
-        - command: ping, send, set address...
+- - command: ping, send, set address...
 
-        - data: data that needs to be handled when receiving the command.
+- - data: data that needs to be handled when receiving the command.
