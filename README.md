@@ -4,6 +4,8 @@
 
 - [x] private/public key messaging between 2 peers
 
+- [ ] send and handle commands
+
 - [ ] message propagation in the network
 
 - [ ] tor-like message propagation
