@@ -13,7 +13,8 @@ from cryptography.hazmat.backends import default_backend
 class Peer:
     def __init__(self, tracker_address, tracker_port):
         # Initialize Peer
-        self.peers = {}
+        self.peers_sockets = {}
+        self.peers_publickeys = {}
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
@@ -45,16 +46,17 @@ class Peer:
         while True:
             message = sys.stdin.readline().strip()
             if message == "peers":
-                print(self.peers)
+                print(self.peers_publickeys)
+                print(self.peers_sockets)
             elif message == "ping":
-                for address in self.peers:
+                for address in self.peers_sockets:
                     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                    self.send_request(self.peers[address]["socket"],"ping",{"time":current_time})
+                    self.send_request(self.peers_sockets[address],"ping",{"time":current_time})
                     print("pinged:",address)
             elif "message:" in message:
-                for address in self.peers:
+                for address in self.peers_sockets:
                     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                    self.send_request(self.peers[address]["socket"],"message",{"time":current_time,"message":self.peers[address]["publickey"].encrypt(message.encode(),
+                    self.send_request(self.peers_sockets[address],"message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(message.encode(),
                         padding.OAEP(
                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
                             algorithm=hashes.SHA256(),
@@ -100,7 +102,8 @@ class Peer:
 
     def handle_request(self,sock,message):
         if message["command"] == "init":
-            self.peers[message["data"]["address"]] = {"socket":sock,"publickey":serialization.load_pem_public_key(message["data"]["publickey"],backend=default_backend())}
+            self.peers_sockets[message["data"]["address"]] = sock
+            self.peers_publickeys = serialization.load_pem_public_key(message["data"]["publickey"],backend=default_backend())
             print("added peer", message["data"]["address"])
         elif message["command"] == "ping":
             print("received:",message)
@@ -122,7 +125,7 @@ class Peer:
         sock.send(pickle.dumps({"command":command,"data":data}))
 
     def get_address(self,socket):
-        return list(self.peers.keys())[list(self.peers.values()).index(socket)]
+        return list(self.peers_sockets.keys())[list(self.peers_sockets.values()).index(socket)]
 
 
 # Create a peer
