@@ -6,6 +6,8 @@
 
 - [x] send and handle commands
 
+- [x] private/public key messages encryption
+
 - [ ] message propagation in the network
 
 - [ ] tor-like message propagation
