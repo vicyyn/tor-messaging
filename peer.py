@@ -2,10 +2,12 @@
 
 import socket
 import threading
+import random
 import pickle
 import sys
 import uuid
 import datetime
+import re
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
@@ -45,25 +47,7 @@ class Peer:
 
         while True:
             message = sys.stdin.readline().strip()
-            if message == "peers":
-                print(self.peers_publickeys)
-                print(self.peers_sockets)
-            elif message == "ping":
-                for address in self.peers_sockets:
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                    self.send_request(self.peers_sockets[address],"ping",{"time":current_time})
-                    print("pinged:",address)
-            elif "message:" in message:
-                for address in self.peers_sockets:
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                    self.send_request(self.peers_sockets[address],"message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(message.encode(),
-                        padding.OAEP(
-                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                            algorithm=hashes.SHA256(),
-                            label=None
-                        ))
-                    })
-                    print("message:",address)
+            self.handle_input(message)
 
     def accept_peers(self):
         while True:
@@ -125,6 +109,42 @@ class Peer:
 
     def get_address(self,socket):
         return list(self.peers_sockets.keys())[list(self.peers_sockets.values()).index(socket)]
+
+    def handle_input(self,request):
+            pattern = r"^\(([^,]+),([^)]+)\) : (.*)$"
+            match = re.search(pattern, request)
+            if not match:
+                return
+            message = match.group(1)
+            address = match.group(2)
+            data = match.group(3)
+
+            if message == "peers":
+                print(self.peers_publickeys)
+                print(self.peers_sockets)
+            elif message == "ping":
+                for address in self.peers_sockets:
+                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                    self.send_request(self.peers_sockets[address],"ping",{"time":current_time})
+                    print("pinged:",address)
+            elif message == "message":
+                address = address if address in self.peers_sockets else self.get_random_address()
+                print(address)
+                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                self.send_request(self.peers_sockets[address],"message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(request.encode(),
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    ))
+                })
+                print("messaged:",address)
+
+    def get_random_address(self):
+        if not self.peers_sockets:
+            return None
+        return random.choice(list(self.peers_sockets.keys()))
+
 
 
 # Create a peer
