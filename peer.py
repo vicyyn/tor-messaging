@@ -63,7 +63,7 @@ class Peer:
                             label=None
                         ))
                     })
-                    print("messaged:",address)
+                    print("message:",address)
 
     def accept_peers(self):
         while True:
@@ -103,7 +103,7 @@ class Peer:
     def handle_request(self,sock,message):
         if message["command"] == "init":
             self.peers_sockets[message["data"]["address"]] = sock
-            self.peers_publickeys = serialization.load_pem_public_key(message["data"]["publickey"],backend=default_backend())
+            self.peers_publickeys[message["data"]["address"]] = serialization.load_pem_public_key(message["data"]["publickey"],backend=default_backend())
             print("added peer", message["data"]["address"])
         elif message["command"] == "ping":
             print("received:",message)
@@ -113,8 +113,7 @@ class Peer:
             print("received:", message)
         elif message["command"] == "message":
             print(" - - - - received message - - - -")
-            print("encrypted:",message["data"])
-            print("decrypted:",self.privatekey.decrypt(message["data"]["message"],padding=padding.OAEP(
+            print(self.privatekey.decrypt(message["data"]["message"],padding=padding.OAEP(
                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
                     algorithm=hashes.SHA256(),
                     label=None

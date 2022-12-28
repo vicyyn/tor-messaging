@@ -2,6 +2,7 @@
 
 import socket
 import pickle
+import random
 
 class Tracker:
     def __init__(self):
@@ -16,11 +17,17 @@ class Tracker:
         while True:
             connection , address = self.sock.accept()
             print("new peer connected",address);
-            connection.sendall(pickle.dumps(self.peers))
+            peer = self.get_peer(1)
+            connection.sendall(pickle.dumps(peer))
             print("sent peers to:",address)
             peer = pickle.loads(connection.recv(4096))
             self.peers.append(peer)
             print("received peer socket:",peer)
+
+    def get_peer(self,number):
+        if not self.peers:
+            return []
+        return random.sample(self.peers,number)
         
 tracker = Tracker()
 tracker.run()

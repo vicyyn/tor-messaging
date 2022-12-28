@@ -8,6 +8,8 @@
 
 - [x] private/public key messages encryption
 
+- [x] limit number of peers, randomize node picking
+
 - [ ] message propagation in the network
 
 - [ ] tor-like message propagation
