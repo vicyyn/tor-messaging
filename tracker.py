@@ -27,7 +27,7 @@ class Tracker:
     def get_random_peers(self,number):
         if number > len(self.peers):
             return self.peers
-        return random.choices(self.peers,k=number)
+        return random.sample(self.peers,k=number)
         
 tracker = Tracker()
 tracker.run()

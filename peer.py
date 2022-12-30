@@ -4,7 +4,6 @@ import socket
 import threading
 import random
 import pickle
-import sys
 import uuid
 import datetime
 import re
@@ -44,10 +43,6 @@ class Peer:
         # connect to peers
         for peer in peers:
             self.connect_peer(peer)
-
-        while True:
-            message = sys.stdin.readline().strip()
-            self.handle_input(message)
 
     def accept_peers(self):
         while True:
@@ -145,7 +140,11 @@ class Peer:
             return None
         return random.choice(list(self.peers_sockets.keys()))
 
+    def get_peers_addresses(self):
+        print(self.peers_publickeys)
+        return self.peers_publickeys.keys()
 
-
-# Create a peer
-peer = Peer("localhost", 8000)
+if __name__ == "__main__":
+    number = int(input("how many peers do you want to start (the bigger the more decetralized the network will be):\n"))
+    for i in range(number):
+        Peer("localhost",8000)

@@ -10,6 +10,10 @@
 
 - [x] limit number of peers, randomize node picking
 
+- [x] client graphical user interface (GUI)
+
+- [ ] client messaging in the network
+
 - [ ] message propagation in the network
 
 - [ ] tor-like message propagation
