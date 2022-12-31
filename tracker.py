@@ -1,8 +1,9 @@
 #/usr/bin/python3
 
 import socket
-import pickle
 import random
+import threading
+from cell import CELL_SIZE, Cell
 
 class Tracker:
     def __init__(self):
@@ -12,22 +13,46 @@ class Tracker:
         self.peers = []
         print("tracker initialized")
 
-    def run(self):
         print("listening for peers")
         while True:
             connection , address = self.sock.accept()
             print("new peer connected",address);
-            peer = self.get_random_peers(3)
-            connection.sendall(pickle.dumps(peer))
-            print("sent peers to:",address)
-            peer = pickle.loads(connection.recv(4096))
-            self.peers.append(peer)
-            print("received peer socket:",peer)
+            threading.Thread(target=self.listen_for_cells,args=(connection,)).start()
+
+    def listen_for_cells(self,sock):
+        while True:
+            cell_serialized = sock.recv(CELL_SIZE)
+            cell = Cell.deserialize(cell_serialized)
+            if cell != None:
+                self.handle_cell(cell,sock)
+            else:
+                break
+
+    def handle_cell(self,cell:Cell,sock):
+        cell.log()
+        match cell.get_command():
+            case "get_peers":
+                self.send_peers(cell.get_data(),sock)
+            case "new_peer":
+                self.add_peer(cell.get_data())
+
+    def send_cell(self,cell:Cell,sock):
+        sock.sendall(cell.serialize())
+
+    def send_peers(self,number,sock):
+        peers = self.get_random_peers(number)
+        cell = Cell("NA","peers",peers)
+        self.send_cell(cell,sock)
+        print("sent peers : ", peers)
+
+    def add_peer(self,peer):
+        self.peers.append(peer)
+        print("added peer:",peer)
 
     def get_random_peers(self,number):
         if number > len(self.peers):
             return self.peers
         return random.sample(self.peers,k=number)
         
-tracker = Tracker()
-tracker.run()
+if __name__ == "__main__":
+    Tracker()

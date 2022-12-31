@@ -1,10 +1,12 @@
+#/usr/bin/python3
+
 import tkinter as tk
 import tkinter.ttk as ttk
 from peer import Peer
 
 class Client:
     def __init__(self) -> None:
-        self.peer = Peer("localhost",8000)
+        self.peer = Peer("localhost",8000,20)
 
         window = tk.Tk()
         window.geometry("800x400")
