@@ -2,7 +2,6 @@
 
 import socket
 import threading
-import random
 import time
 import uuid
 import datetime
@@ -98,7 +97,7 @@ class Peer:
                 print("received:",cell.get_data())
                 cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
                 self.send_cell(cell,sock)
-                print("ponged:",self.get_address(sock))
+                print("ponged:",self.get_address_from_socket(sock))
             case "pong":
                 print("received:", cell.get_data())
             case "message":
@@ -115,47 +114,15 @@ class Peer:
     def send_cell(self,cell:Cell,sock):
         sock.sendall(cell.serialize())
 
-    def get_address(self,socket):
+    def get_address_from_socket(self,socket):
         return list(self.peers_sockets.keys())[list(self.peers_sockets.values()).index(socket)]
-
-    # def handle_input(self,request):
-    #         pattern = r"^\(([^,]+),([^)]+)\) : (.*)$"
-    #         match = re.search(pattern, request)
-    #         if not match:
-    #             return
-    #         message = match.group(1)
-    #         address = match.group(2)
-    #         data = match.group(3)
-
-    #         if message == "peers":
-    #             print(self.peers_publickeys)
-    #             print(self.peers_sockets)
-    #         elif message == "ping":
-    #             for address in self.peers_sockets:
-    #                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-    #                 self.send_request(self.peers_sockets[address],"ping",{"time":current_time})
-    #                 print("pinged:",address)
-    #         elif message == "message":
-    #             address = address if address in self.peers_sockets else self.get_random_address()
-    #             print(address)
-    #             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-    #             self.send_request(self.peers_sockets[address],"message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(request.encode(),
-    #                 padding.OAEP(
-    #                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
-    #                     algorithm=hashes.SHA256(),
-    #                     label=None
-    #                 ))
-    #             })
-    #             print("messaged:",address)
-
-    def get_random_address(self):
-        if not self.peers_sockets:
-            return None
-        return random.choice(list(self.peers_sockets.keys()))
 
     def get_peers_addresses(self):
         print(self.peers_publickeys)
         return self.peers_publickeys.keys()
+
+    def get_address(self):
+        return self.address
 
 if __name__ == "__main__":
     number = int(input("how many peers do you want to start (the bigger the more decetralized the network will be):\n"))

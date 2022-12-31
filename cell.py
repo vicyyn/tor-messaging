@@ -1,11 +1,9 @@
-#/usr/bin/python3
-
 # Peers communicate with one another, and with users via a TLS communication with ephemeral keys.
 # Using TLS conceals the data on the connection with perfect forward secrecy, and prevents an
 # attacker from modifying data on the wire. Traffic passes along these connections in fixed-size cells.
 
 # Each cell is 4096 bytes, and consists of a header and a payload. The header includes a circuit
-# identifier (circID) that specifies which circuit the cell refers to (many circuits can be multiplexed
+# identifier (circuit_id) that specifies which circuit the cell refers to (many circuits can be multiplexed
 # over the single TLS connection), and a command to describe what to do with the cell’s payload
 
 # commands :
