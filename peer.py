@@ -11,11 +11,11 @@ from cryptography.hazmat.backends import default_backend
 from cell import CELL_SIZE, Cell
 
 class Peer:
-    def __init__(self, tracker_address, tracker_port,number_of_peers):
+    def __init__(self, tracker_address, tracker_port,initial_number):
         # Initialize Peer
         self.peers_sockets = {}
         self.peers_publickeys = {}
-        self.peers = []
+        self.socknames = set()
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
@@ -32,21 +32,15 @@ class Peer:
         print("connected to tracker")
         threading.Thread(target=self.listen_for_cells,args=(self.tracker,)).start()
 
-        # get peers
-        cell = Cell("NA","get_peers",number_of_peers)
-        self.send_cell(cell,self.tracker)
-        time.sleep(0.5)
-
-        # Send Peer Socket to Tracker
-        cell = Cell("NA","new_peer",self.sock.getsockname())
-        self.send_cell(cell,self.tracker)
+        self.get_peers(initial_number)
+        self.send_sockname()
 
         # listen for connections
         accept_thread = threading.Thread(target=self.accept_peers,args=())
         accept_thread.start()
 
         # connect to peers
-        for peer in self.peers:
+        for peer in self.socknames:
             self.connect_peer(peer)
 
     def accept_peers(self):
@@ -87,17 +81,18 @@ class Peer:
         data = cell.get_data()
         match command:
             case "peers":
-                self.peers = data
                 print("received peers : ", data)
+                for peer in data:
+                    if peer not in self.socknames:
+                        self.socknames.add(peer)
+                        self.connect_peer(peer)
             case "init":
                 self.peers_sockets[data["address"]] = sock
                 self.peers_publickeys[data["address"]] = serialization.load_pem_public_key(data["publickey"],backend=default_backend())
                 print("added peer", data["address"])
             case "ping":
-                print("received:",cell.get_data())
-                cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
-                self.send_cell(cell,sock)
-                print("ponged:",self.get_address_from_socket(sock))
+                print("received:", cell.get_data())
+                self.pong(sock)
             case "pong":
                 print("received:", cell.get_data())
             case "message":
@@ -111,6 +106,27 @@ class Peer:
             case other:
                 pass
 
+    def pong(self,sock):
+        cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
+        self.send_cell(cell,sock)
+        print("ponged:",self.get_address_from_socket(sock))
+
+    def ping(self,sock):
+        cell = Cell("NA","ping",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
+        self.send_cell(cell,sock)
+        print("pinged:",self.get_address_from_socket(sock))
+
+    def send_sockname(self):
+        # Send Peer Socket to Tracker
+        cell = Cell("NA","sockname",self.sock.getsockname())
+        self.send_cell(cell,self.tracker)
+
+    def get_peers(self,number):
+        cell = Cell("NA","get_peers",number)
+        self.send_cell(cell,self.tracker)
+        # needed when creating multiple peers sequentially
+        time.sleep(0.5)
+
     def send_cell(self,cell:Cell,sock):
         sock.sendall(cell.serialize())
 
@@ -118,11 +134,20 @@ class Peer:
         return list(self.peers_sockets.keys())[list(self.peers_sockets.values()).index(socket)]
 
     def get_peers_addresses(self):
-        print(self.peers_publickeys)
         return self.peers_publickeys.keys()
 
     def get_address(self):
         return self.address
+
+    def get_peers_sockets(self):
+        return self.peers_sockets
+
+    def get_peers_publickeys(self):
+        return self.peers_publickeys
+
+    def get_socket(self):
+        return self.sock
+
 
 if __name__ == "__main__":
     number = int(input("how many peers do you want to start (the bigger the more decetralized the network will be):\n"))

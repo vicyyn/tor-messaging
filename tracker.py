@@ -33,7 +33,7 @@ class Tracker:
         match cell.get_command():
             case "get_peers":
                 self.send_peers(cell.get_data(),sock)
-            case "new_peer":
+            case "sockname":
                 self.add_peer(cell.get_data())
 
     def send_cell(self,cell:Cell,sock):
