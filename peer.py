@@ -53,11 +53,12 @@ class Peer:
 
     def connect_peer(self,peer):
         try:
-            sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            sock.connect(peer)
-            threading.Thread(target=self.listen_for_cells,args=(sock,)).start()
-            self.initialize_peer(sock)
-            self.log("connected to peer : " , peer)
+            if self.sock.getsockname()[1] != peer[1]:
+                sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                sock.connect(peer)
+                threading.Thread(target=self.listen_for_cells,args=(sock,)).start()
+                self.initialize_peer(sock)
+                self.log("connected to peer : " , peer)
         except:
             self.log("connection failed : " , peer)
 
@@ -82,7 +83,7 @@ class Peer:
         data = cell.get_data()
         match command:
             case "peers":
-                self.log("received peers : " , data)
+                # self.log("received peers : " , data)
                 for peer in data:
                     if peer not in self.socknames:
                         self.socknames.add(peer)
@@ -106,6 +107,19 @@ class Peer:
                 ).decode())
             case other:
                 pass
+
+    def send_message(self,message,sock):
+         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+         address = self.get_address_from_socket(sock)
+         cell = Cell("NA","message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(message.encode(),
+             padding.OAEP(
+                 mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                 algorithm=hashes.SHA256(),
+                 label=None
+             ))
+         })
+         self.send_cell(cell,sock)
+         self.log("sent message : ", message)
 
     def pong(self,sock):
         cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})

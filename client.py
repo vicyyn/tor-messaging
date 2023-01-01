@@ -41,7 +41,7 @@ class Client:
         buttons_frame = tk.Frame(window)
         ping_button = tk.Button(buttons_frame, text="Ping",command=self.ping)
         ping_button.pack(side="left", padx=5, pady=5)
-        send_button = tk.Button(buttons_frame, text="Send message")
+        send_button = tk.Button(buttons_frame, text="Send message", command=self.send_message)
         send_button.pack(side="left", padx=5, pady=5)
         init_button = tk.Button(buttons_frame, text="Initialize circuit")
         init_button.pack(side="left", padx=5, pady=5)
@@ -61,27 +61,25 @@ class Client:
         for index , address in enumerate(self.peer.get_peers_addresses()):
             treeview.insert("", "end", text=str(index+1), values=(address,self.peer.get_peers_sockets()[address].getsockname()))
 
-        threading.Thread(target=self.auto_refresh,args=()).start()
         window.mainloop()
 
     def log(self,message):
         self.log_text.configure(state="normal")
         self.log_text.insert("end", message + "\n")
         self.log_text.configure(state="disabled")
+        self.log_text.see("end")
+
+    def send_message(self):
+        message = "Hello from " + self.peer.get_address()
+        sock = self.get_address_from_selection()
+        self.peer.send_message(message,sock)
 
     def ping(self):
-        selection = self.treeview.selection()
-        item = self.treeview.item(selection[0])
-        address = item['values'][0]
-        sock = self.peer.get_peer_socket(address)
+        sock = self.get_address_from_selection()
         self.peer.ping(sock)
 
-    def auto_refresh(self):
-        while True:
-            self.refresh()
-            time.sleep(10)
-
     def refresh(self):
+        self.log("refresh")
         self.peer.get_peers(10)
         self.update_table()
         self.update_labels()
@@ -93,6 +91,16 @@ class Client:
 
     def update_labels(self):
         self.peers_label_text.set("peers : " + str(len(self.peer.get_peers_addresses())))
+
+    def get_address_from_selection(self):
+        try:
+            selection = self.treeview.selection()
+            item = self.treeview.item(selection[0])
+            address = item['values'][0]
+            sock = self.peer.get_peer_socket(address)
+            return sock
+        except:
+            return None
 
     # def handle_input(self,request):
     #         pattern = r"^\(([^,]+),([^)]+)\) : (.*)$"
