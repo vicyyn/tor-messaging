@@ -11,7 +11,8 @@ from cryptography.hazmat.backends import default_backend
 from cell import CELL_SIZE, Cell
 
 class Peer:
-    def __init__(self, tracker_address, tracker_port,initial_number):
+    def __init__(self, tracker_address, tracker_port,initial_number,logger):
+        self.logger = logger
         # Initialize Peer
         self.peers_sockets = {}
         self.peers_publickeys = {}
@@ -22,14 +23,14 @@ class Peer:
         self.sock.listen()
         
         self.address = uuid.uuid4().hex
-        print("socket initialized",self.address)
+        self.log("socket initialized " , self.address)
         self.privatekey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.publickey = self.privatekey.public_key()
 
         # Connect to Tracker
         self.tracker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tracker.connect((tracker_address, tracker_port))
-        print("connected to tracker")
+        self.log("connected to tracker")
         threading.Thread(target=self.listen_for_cells,args=(self.tracker,)).start()
 
         self.get_peers(initial_number)
@@ -48,7 +49,7 @@ class Peer:
             peer_socket, peer_address = self.sock.accept()
             threading.Thread(target=self.listen_for_cells,args=(peer_socket,)).start()
             self.initialize_peer(peer_socket)
-            print(f'peer connected: {peer_address}')
+            self.log(f'peer connected : {peer_address}')
 
     def connect_peer(self,peer):
         try:
@@ -56,9 +57,9 @@ class Peer:
             sock.connect(peer)
             threading.Thread(target=self.listen_for_cells,args=(sock,)).start()
             self.initialize_peer(sock)
-            print("connected to peer:",peer)
+            self.log("connected to peer : " , peer)
         except:
-            print("connection failed:",peer)
+            self.log("connection failed : " , peer)
 
     def initialize_peer(self,sock):
         cell = Cell("NA","init",{"address":self.address,"publickey":self.publickey.public_bytes(
@@ -81,7 +82,7 @@ class Peer:
         data = cell.get_data()
         match command:
             case "peers":
-                print("received peers : ", data)
+                self.log("received peers : " , data)
                 for peer in data:
                     if peer not in self.socknames:
                         self.socknames.add(peer)
@@ -89,15 +90,15 @@ class Peer:
             case "init":
                 self.peers_sockets[data["address"]] = sock
                 self.peers_publickeys[data["address"]] = serialization.load_pem_public_key(data["publickey"],backend=default_backend())
-                print("added peer", data["address"])
+                self.log("added peer : " , data["address"])
             case "ping":
-                print("received:", cell.get_data())
+                self.log("received ping : " , cell.get_data())
                 self.pong(sock)
             case "pong":
-                print("received:", cell.get_data())
+                self.log("received pong : " , cell.get_data())
             case "message":
-                print(" - - - - received message - - - -")
-                print(self.privatekey.decrypt(data["message"],padding=padding.OAEP(
+                self.log(" - - - - received message - - - -")
+                self.log(self.privatekey.decrypt(data["message"],padding=padding.OAEP(
                         mgf=padding.MGF1(algorithm=hashes.SHA256()),
                         algorithm=hashes.SHA256(),
                         label=None
@@ -109,12 +110,12 @@ class Peer:
     def pong(self,sock):
         cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
         self.send_cell(cell,sock)
-        print("ponged:",self.get_address_from_socket(sock))
+        self.log("ponged : " , self.get_address_from_socket(sock))
 
     def ping(self,sock):
         cell = Cell("NA","ping",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
         self.send_cell(cell,sock)
-        print("pinged:",self.get_address_from_socket(sock))
+        self.log("pinged : " , self.get_address_from_socket(sock))
 
     def send_sockname(self):
         # Send Peer Socket to Tracker
@@ -148,9 +149,21 @@ class Peer:
     def get_socket(self):
         return self.sock
 
+    def get_peer_socket(self,address):
+        return self.peers_sockets[address]
+
+    def log(self,*messages):
+        message = ""
+        for m in messages:
+            message = message + str(m)
+        if self.logger:
+            self.logger.log(message)
+        else:
+            print(message)
+
 
 if __name__ == "__main__":
     number = int(input("how many peers do you want to start (the bigger the more decetralized the network will be):\n"))
     for i in range(number):
-        Peer("localhost",8000,3)
+        Peer("localhost",8000,3,None)
         time.sleep(0.5)
