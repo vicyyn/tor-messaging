@@ -10,32 +10,23 @@ from peer import Peer
 class Client:
     def __init__(self) -> None:
         window = tk.Tk()
-
-        self.log_text = tk.Text(window,state="disabled")
-        self.log_text.pack(side="bottom",fill="x")
-
-        self.peer = Peer("localhost",8000,10,Logger(self))
-
         window.geometry("800x400")
         window.title("tor-messaging client")
         window.config(background="#121212")
 
         info_frame = tk.Frame(window)
-
-        self.name_label = tk.Label( info_frame, text="Name : " + "Nader",justify="center")
-        self.name_label.pack(side="left", padx=5, pady=5)
-
-        self.address_label = tk.Label(info_frame, text="Address : " + self.peer.get_address(),justify="center")
-        self.address_label.pack(side="left", padx=5, pady=5)
-
-        self.ip_label = tk.Label(info_frame, text="IP : " + str(self.peer.get_socket().getsockname()),justify="center")
-        self.ip_label.pack(side="left", padx=5, pady=5)
-
-        self.peers_label_text = tk.StringVar()
-        self.peers_label_text.set("peers : " + str(len(self.peer.get_peers_addresses())))
-        self.peers_label = tk.Label(info_frame, textvariable=self.peers_label_text,justify="center")
-        self.peers_label.pack(side="left", padx=5, pady=5)
-
+        address_label_text = tk.StringVar()
+        address_label_text.set("Address : ")
+        address_label = tk.Label(info_frame, textvariable=address_label_text,justify="center")
+        address_label.pack(side="left", padx=5, pady=5)
+        ip_label_text = tk.StringVar()
+        ip_label_text.set("IP : ")
+        ip_label = tk.Label(info_frame, textvariable=ip_label_text,justify="center")
+        ip_label.pack(side="left", padx=5, pady=5)
+        peers_label_text = tk.StringVar()
+        peers_label_text.set("Peers : ")
+        peers_label = tk.Label(info_frame, textvariable=peers_label_text,justify="center")
+        peers_label.pack(side="left", padx=5, pady=5)
         info_frame.pack( side="top",fill="x")
 
         buttons_frame = tk.Frame(window)
@@ -49,18 +40,23 @@ class Client:
         refresh_button.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
 
+
         treeview = ttk.Treeview(window)
         treeview["columns"] = ("peer_address", "ip")
         treeview.heading("peer_address", text="Peer address")
         treeview.heading("ip", text="IP")
-        treeview.pack(side="bottom",expand=True, fill="both")
+        treeview.pack(side="top",expand=True, fill="both")
 
+        log_text = tk.Text(window,state="disabled")
+        log_text.pack(side="bottom",fill="x")
 
         self.treeview = treeview
+        self.address_label_text = address_label_text
+        self.ip_label_text = ip_label_text
+        self.peers_label_text = peers_label_text
+        self.log_text = log_text
 
-        for index , address in enumerate(self.peer.get_peers_addresses()):
-            treeview.insert("", "end", text=str(index+1), values=(address,self.peer.get_peers_sockets()[address].getsockname()))
-
+        self.peer = Peer("localhost",8000,10,Logger(self))
         window.mainloop()
 
     def log(self,message):
@@ -68,6 +64,7 @@ class Client:
         self.log_text.insert("end", message + "\n")
         self.log_text.configure(state="disabled")
         self.log_text.see("end")
+        self.refresh_gui()
 
     def send_message(self):
         message = "Hello from " + self.peer.get_address()
@@ -77,20 +74,32 @@ class Client:
     def ping(self):
         sock = self.get_address_from_selection()
         self.peer.ping(sock)
+        self.refresh_gui()
 
     def refresh(self):
         self.log("refresh")
         self.peer.get_peers(10)
+        self.refresh_gui()
+
+    def refresh_gui(self):
         self.update_table()
         self.update_labels()
 
     def update_table(self):
-        self.treeview.delete(*self.treeview.get_children())
-        for index , address in enumerate(self.peer.get_peers_addresses()):
-            self.treeview.insert("", "end", text=str(index+1), values=(address,self.peer.get_peers_sockets()[address].getsockname()))
+        try:
+            self.treeview.delete(*self.treeview.get_children())
+            for index , address in enumerate(self.peer.get_peers_addresses()):
+                self.treeview.insert("", "end", text=str(index+1), values=(address,self.peer.get_peers_sockets()[address].getsockname()))
+        except:
+            pass
 
     def update_labels(self):
-        self.peers_label_text.set("peers : " + str(len(self.peer.get_peers_addresses())))
+        try:
+            self.peers_label_text.set("peers : " + str(len(self.peer.get_peers_addresses())))
+            self.address_label_text.set("Address : " + self.peer.get_address())
+            self.ip_label_text.set("IP : " + str(len(self.peer.get_socket().getsockname())))
+        except:
+            pass
 
     def get_address_from_selection(self):
         try:

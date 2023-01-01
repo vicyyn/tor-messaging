@@ -119,7 +119,8 @@ class Peer:
              ))
          })
          self.send_cell(cell,sock)
-         self.log("sent message : ", message)
+         cell.log()
+         self.log("sent message to ",address, " : ",  message)
 
     def pong(self,sock):
         cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
