@@ -1,7 +1,5 @@
 #/usr/bin/python3
 
-import threading
-import time
 import tkinter as tk
 import tkinter.ttk as ttk
 from logger import Logger
@@ -34,7 +32,7 @@ class Client:
         ping_button.pack(side="left", padx=5, pady=5)
         send_button = tk.Button(buttons_frame, text="Send message", command=self.send_message)
         send_button.pack(side="left", padx=5, pady=5)
-        init_button = tk.Button(buttons_frame, text="Initialize circuit")
+        init_button = tk.Button(buttons_frame, text="Initialize circuit" , command=self.initialize_circuit)
         init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
@@ -66,13 +64,33 @@ class Client:
         self.log_text.see("end")
         self.refresh_gui()
 
+    def initialize_circuit(self):
+        addresses = self.get_addresses_from_selection()
+        self.circuit = addresses
+        self.peer.log(addresses)
+        self.peer.initialize_circuit("SATOSHI",{"next":addresses})
+
     def send_message(self):
-        message = "Hello from " + self.peer.get_address()
-        sock = self.get_address_from_selection()
-        self.peer.send_message(message,sock)
+        message = "Hello World!"
+        message = message.encode()
+        self.peer.log(message)
+
+        for address in self.circuit:
+            self.peer.log(address)
+            self.peer.log(self.peer.get_peer_publickey(address))
+            message = self.peer.encrypt_with_publickey(message,self.peer.get_peer_publickey(address))
+            self.peer.log(len(message))
+
+        self.peer.log(message)
+        self.peer.log(self.circuit)
+
+        address = self.get_address_from_selection(0)
+        sock = self.peer.get_peers_sockets()[address]
+        self.peer.send_message("SATOSHI",message,sock)
 
     def ping(self):
-        sock = self.get_address_from_selection()
+        address = self.get_address_from_selection(0)
+        sock = self.peer.get_peers_sockets()[address]
         self.peer.ping(sock)
         self.refresh_gui()
 
@@ -101,13 +119,19 @@ class Client:
         except:
             pass
 
-    def get_address_from_selection(self):
+    def get_addresses_from_selection(self):
+        selections = self.treeview.selection()
+        res = []
+        for i in range(len(selections)):
+            res.append(self.get_address_from_selection(i))
+        return res
+
+    def get_address_from_selection(self,number):
         try:
             selection = self.treeview.selection()
-            item = self.treeview.item(selection[0])
+            item = self.treeview.item(selection[number])
             address = item['values'][0]
-            sock = self.peer.get_peer_socket(address)
-            return sock
+            return address
         except:
             return None
 
@@ -141,8 +165,5 @@ class Client:
     #             })
     #             print("messaged:",address)
 
-
 if __name__ == "__main__":
     Client()
-
-

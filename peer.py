@@ -5,6 +5,8 @@ import threading
 import time
 import uuid
 import datetime
+
+
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
@@ -17,6 +19,7 @@ class Peer:
         self.peers_sockets = {}
         self.peers_publickeys = {}
         self.socknames = set()
+        self.circuits = {}
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
@@ -24,6 +27,7 @@ class Peer:
         
         self.address = uuid.uuid4().hex
         self.log("socket initialized " , self.address)
+
         self.privatekey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.publickey = self.privatekey.public_key()
 
@@ -81,9 +85,11 @@ class Peer:
     def handle_cell(self,cell,sock):
         command = cell.get_command()
         data = cell.get_data()
+        circuit_id = cell.get_circuit_id()
         match command:
+            case "circuit":
+                self.initialize_circuit(circuit_id,data)
             case "peers":
-                # self.log("received peers : " , data)
                 for peer in data:
                     if peer not in self.socknames:
                         self.socknames.add(peer)
@@ -99,28 +105,42 @@ class Peer:
                 self.log("received pong : " , cell.get_data())
             case "message":
                 self.log(" - - - - received message - - - -")
-                self.log(self.privatekey.decrypt(data["message"],padding=padding.OAEP(
+                message = self.privatekey.decrypt(data["message"],padding=padding.OAEP(
                         mgf=padding.MGF1(algorithm=hashes.SHA256()),
                         algorithm=hashes.SHA256(),
                         label=None
                     )
-                ).decode())
-            case other:
-                pass
+                ).decode()
+                if circuit_id not in self.get_circuits():
+                    self.log(" - - - - end - - - -")
+                    self.log(message)
+                else:
+                    self.send_message(circuit_id,{"message":message}, self.get_peer_socket(self.get_circuit_address(circuit_id)))
 
-    def send_message(self,message,sock):
+    def initialize_circuit(self,circuit_id,data):
+        self.log(data)
+        next_peer_address = data["next"][0]
+        self.circuits[circuit_id] = next_peer_address
+        remaining_peers_addresses = data["next"][1:]
+        if len(remaining_peers_addresses) > 0:
+            cell = Cell(circuit_id,"circuit",{"next":remaining_peers_addresses})
+            self.send_cell(cell,self.get_peer_socket(next_peer_address))
+        self.log(self.circuits)
+
+    def send_message(self,circuit_id,message,sock):
          current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
          address = self.get_address_from_socket(sock)
-         cell = Cell("NA","message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(message.encode(),
+         cell = Cell(circuit_id,"message",{"time":current_time,"message":message})
+         self.send_cell(cell,sock)
+         self.log("sent message to ",address, " : ",  message)
+
+    def encrypt_with_publickey(self,message,publickey):
+        return publickey.encrypt(message,
              padding.OAEP(
                  mgf=padding.MGF1(algorithm=hashes.SHA256()),
                  algorithm=hashes.SHA256(),
                  label=None
-             ))
-         })
-         self.send_cell(cell,sock)
-         cell.log()
-         self.log("sent message to ",address, " : ",  message)
+         ))
 
     def pong(self,sock):
         cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
@@ -166,6 +186,15 @@ class Peer:
 
     def get_peer_socket(self,address):
         return self.peers_sockets[address]
+
+    def get_peer_publickey(self,address):
+        return self.peers_publickeys[address]
+
+    def get_circuits(self):
+        return self.circuits
+
+    def get_circuit_address(self,circuit):
+        return self.circuits[circuit]
 
     def log(self,*messages):
         message = ""
