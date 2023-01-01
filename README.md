@@ -12,6 +12,8 @@
 
 - [x] client graphical user interface (GUI)
 
+- [ ] onion encryption
+
 - [ ] client messaging in the network
 
 - [ ] message propagation in the network
