@@ -124,6 +124,8 @@ class Client:
     #             })
     #             print("messaged:",address)
 
-Client()
+
+if __name__ == "__main__":
+    Client()
 
 
