@@ -6,11 +6,12 @@ import time
 import uuid
 import datetime
 
-
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cell import CELL_SIZE, Cell
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 
 class Peer:
     def __init__(self, tracker_address, tracker_port,initial_number,logger):
@@ -28,7 +29,7 @@ class Peer:
         self.address = uuid.uuid4().hex
         self.log("socket initialized " , self.address)
 
-        self.privatekey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.privatekey = rsa.generate_private_key(public_exponent=65537, key_size=1024)
         self.publickey = self.privatekey.public_key()
 
         # Connect to Tracker
@@ -142,6 +143,26 @@ class Peer:
                  label=None
          ))
 
+    def aes_encrypt(self,message,cipher):
+        encrypted_message = cipher.encrypt(message)
+        return encrypted_message
+
+    def aes_decrypt(self,message,decipher):
+        decrypted_message = decipher.decrypt(message)
+        return decrypted_message
+
+    def create_message_cell(self,circuit_id,message,addresses):
+       key = get_random_bytes(16)
+       cipher = AES.new(key, AES.MODE_EAX)
+       nonce = cipher.nonce
+       encrypted_message = self.aes_encrypt(message,cipher)
+
+       for address in addresses:
+           publickey = self.get_peer_publickey(address)
+           key = self.encrypt_with_publickey(key,publickey)
+           nonce = self.encrypt_with_publickey(nonce,publickey)
+       return Cell(circuit_id,"message",{"message":encrypted_message,"nonce":nonce,"key":key})
+
     def pong(self,sock):
         cell = Cell("NA","pong",{"time":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")})
         self.send_cell(cell,sock)
@@ -153,7 +174,7 @@ class Peer:
         self.log("pinged : " , self.get_address_from_socket(sock))
 
     def send_sockname(self):
-        # Send Peer Socket to Tracker
+        # send peer socket to tracker
         cell = Cell("NA","sockname",self.sock.getsockname())
         self.send_cell(cell,self.tracker)
 

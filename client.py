@@ -4,6 +4,9 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from logger import Logger
 from peer import Peer
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+
 
 class Client:
     def __init__(self) -> None:
@@ -69,11 +72,31 @@ class Client:
         self.circuit = addresses
         self.peer.log(addresses)
         self.peer.initialize_circuit("SATOSHI",{"next":addresses})
-
+    
     def send_message(self):
-        message = "Hello World!"
-        message = message.encode()
-        self.peer.log(message)
+        keys = []
+
+        message = b"Hello!"
+        keys = []
+
+        for i in range(3):
+            key = get_random_bytes(16)
+            cipher = AES.new(key, AES.MODE_CBC,b"0" * 16)
+            message = self.peer.aes_encrypt(message,cipher)
+            self.peer.log(message)
+            keys.append(key)
+
+        for i in range(3):
+            decipher = AES.new(keys[i], AES.MODE_CBC,b"0" * 16)
+            message = self.peer.aes_decrypt(message,decipher)
+            self.peer.log(message)
+        return
+
+        address = self.get_address_from_selection(0)
+        sock = self.peer.get_peer_socket(address)
+        message_cell = self.peer.create_message_cell("SATOSHI","Hello",self.circuit)
+        message_cell.log()
+        return
 
         for address in self.circuit:
             self.peer.log(address)
