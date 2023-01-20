@@ -15,6 +15,7 @@ class Client:
         self.layers = []
 
         window = tk.Tk()
+        self.window = window
         window.geometry("800x400")
         window.title("tor-messaging client")
         window.config(background="#121212")
@@ -37,22 +38,20 @@ class Client:
         buttons_frame = tk.Frame(window)
         ping_button = tk.Button(buttons_frame, text="Ping",command=self.ping)
         ping_button.pack(side="left", padx=5, pady=5)
-        send_button = tk.Button(buttons_frame, text="Send Message", command=self.send_message)
-        send_button.pack(side="left", padx=5, pady=5)
-        init_button = tk.Button(buttons_frame, text="Add to Circuit" , command=self.create_circuit)
+        init_button = tk.Button(buttons_frame, text="Create Circuit" , command=self.create_circuit)
         init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
-        self.message_input = tk.Entry(buttons_frame)
-        self.message_input.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
 
         self.circuit = []
 
         treeview = ttk.Treeview(window)
+        treeview.pack(side="top",expand=True, fill="both")
         treeview["columns"] = ("peer_address", "ip")
         treeview.heading("peer_address", text="Peer address")
         treeview.heading("ip", text="IP")
+        treeview.bind('<Double-1>', self.pop_window)
         treeview.pack(side="top",expand=True, fill="both")
 
         log_text = tk.Text(window,state="disabled")
@@ -63,9 +62,42 @@ class Client:
         self.ip_label_text = ip_label_text
         self.peers_label_text = peers_label_text
         self.log_text = log_text
+        self.messages_log = None
 
         self.peer = Peer("localhost",8000,10,Logger(self))
         window.mainloop()
+
+    def pop_window(self,event):
+        address = self.get_address_from_selection(0)
+
+        messaging_box = tk.Toplevel(self.window)
+        tk.Label(messaging_box, text='address : ' + address).pack()
+
+        bottom_frame = tk.Frame(messaging_box)
+
+        send_button = tk.Button(bottom_frame, text="Send Message", command=self.send_message)
+        send_button.pack(side="right", padx=5, pady=5)
+
+        left_label = tk.Label(bottom_frame, text="message : ",justify="center")
+        left_label.pack(side="left", padx=5, pady=5)
+
+        self.message_input = tk.Entry(bottom_frame)
+        self.message_input.pack(side="left", padx=5, pady=5)
+
+        bottom_frame.pack(side="bottom",fill="x")
+
+        self.messages_log = tk.Text(messaging_box,state="disabled")
+        self.messages_log.pack(side="top",fill="x")
+        self.fill_messages_log(address)
+
+    def fill_messages_log(self,address):
+        self.messages_log.delete(1.0,tk.END)
+        for message in self.peer.messages.get(address,[]):
+            self.messages_log.configure(state="normal")
+            self.messages_log.insert("end", str(message) + "\n")
+            self.log_text.configure(state="disabled")
+        self.log_text.see("end")
+
 
     def log(self,message):
         self.log_text.configure(state="normal")
@@ -89,8 +121,11 @@ class Client:
             aes = self.peer.get_aes_from_key(key)
             message = aes.encrypt(pad(message,16))
 
-        cell = Cell("NA","message", {"message":message,"next":self.circuit[1:] + [address]} )
+        cell = Cell("NA","message", {"from":self.peer.address,"message":message,"next":self.circuit[1:] + [address]} )
         self.peer.send_cell(cell,sock)
+        self.peer.add_message(self.message_input.get(),address,self.peer.address)
+        self.log(self.peer.messages)
+        self.fill_messages_log(address)
 
     def ping(self):
         address = self.get_address_from_selection(0)
@@ -119,7 +154,7 @@ class Client:
         try:
             self.peers_label_text.set("peers : " + str(len(self.peer.get_peers_addresses())))
             self.address_label_text.set("Address : " + self.peer.get_address())
-            self.ip_label_text.set("IP : " + str(len(self.peer.get_socket().getsockname())))
+            self.ip_label_text.set("IP : " + str(self.peer.get_socket().getsockname()))
         except:
             pass
 

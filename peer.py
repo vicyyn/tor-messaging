@@ -22,18 +22,22 @@ class Peer:
     def __init__(self, tracker_address, tracker_port,initial_number,logger):
         self.logger = logger
         # Initialize Peer
+        self.address = uuid.uuid4().hex
+
         self.peers_sockets = {}
         self.peers_publickeys = {}
         self.socknames = set()
+
         self.layers = []
         self.next = None
+        self.back = None
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
         self.sock.listen()
 
-        self.address = uuid.uuid4().hex
         self.log("socket initialized " , self.address)
+        self.messages = {}
 
         self.privatekey = rsa.generate_private_key(public_exponent=65537, key_size=1024)
         self.publickey = self.privatekey.public_key()
@@ -102,9 +106,6 @@ class Peer:
         data = cell.get_data()
         circuit_id = cell.get_circuit_id()
         match command:
-            case "extend":
-                self.next = data["next"]
-                self.log(self.next)
             case "create":
                 serialized_dh_key = data["dh_key"]
                 dh_key = serialization.load_pem_public_key(
@@ -162,13 +163,14 @@ class Peer:
             case "message":
                 addresses = data["next"]
                 if len(addresses) == 0:
-                    self.log("received ",data["message"].decode())
+                    self.log("received ",data["message"].decode()," from ", data["from"])
+                    self.add_message(data["message"].decode(),data["from"],data["from"])
                 else:
                     aes = self.get_aes_from_key(self.key)
                     decrypted = unpad(aes.decrypt(data["message"]),16)
-                    self.log("received ",decrypted)
+                    self.log("received ",decrypted, " from ",)
                     address = addresses[0]
-                    cell = Cell("NA","message",{"message":decrypted,"next":addresses[1:]})
+                    cell = Cell("NA","message",{"from":data["from"],"message":decrypted,"next":addresses[1:]})
                     sock = self.get_peer_socket(address)
                     self.send_cell(cell,sock)
 
@@ -182,11 +184,11 @@ class Peer:
         self.send_cell(cell,sock)
 
     def send_message(self,circuit_id,message,sock):
-         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-         address = self.get_address_from_socket(sock)
-         cell = Cell(circuit_id,"message",{"time":current_time,"message":message})
-         self.send_cell(cell,sock)
-         self.log("sent message to ",address, " : ",  message)
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        address = self.get_address_from_socket(sock)
+        cell = Cell(circuit_id,"message",{"time":current_time,"message":message})
+        self.send_cell(cell,sock)
+        self.log("sent message to ",address, " : ",  message)
 
     def encrypt_with_publickey(self,message,publickey):
         return publickey.encrypt(message,
@@ -236,6 +238,11 @@ class Peer:
         self.send_cell(cell,self.tracker)
         # needed when creating multiple peers sequentially
         time.sleep(0.5)
+    
+    def add_message(self,message,address,logAddress):
+        if not self.messages.get(address,False):
+            self.messages[address] = []
+        self.messages[address].append(logAddress + " : " + message)
 
     def send_cell(self,cell:Cell,sock):
         sock.sendall(cell.serialize())
