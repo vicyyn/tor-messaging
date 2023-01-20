@@ -12,6 +12,10 @@
 
 - [x] client graphical user interface (GUI)
 
+- [x] diffie hellman key exchange
+
+- [ ] create circuit
+
 - [ ] onion encryption
 
 - [ ] client messaging in the network

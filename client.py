@@ -35,8 +35,8 @@ class Client:
         ping_button.pack(side="left", padx=5, pady=5)
         send_button = tk.Button(buttons_frame, text="Send message", command=self.send_message)
         send_button.pack(side="left", padx=5, pady=5)
-        init_button = tk.Button(buttons_frame, text="Initialize circuit" , command=self.initialize_circuit)
-        init_button.pack(side="left", padx=5, pady=5)
+        #init_button = tk.Button(buttons_frame, text="Initialize circuit" , command=self.initialize_circuit)
+        #init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
@@ -67,49 +67,15 @@ class Client:
         self.log_text.see("end")
         self.refresh_gui()
 
-    def initialize_circuit(self):
-        addresses = self.get_addresses_from_selection()
-        self.circuit = addresses
-        self.peer.log(addresses)
-        self.peer.initialize_circuit("SATOSHI",{"next":addresses})
+    #def initialize_circuit(self):
+    #    addresses = self.get_addresses_from_selection()
+    #    self.circuit = addresses
+    #    self.peer.log(addresses)
+    #    self.peer.initialize_circuit("SATOSHI",{"next":addresses})
     
     def send_message(self):
-        keys = []
-
-        message = b"Hello!"
-        keys = []
-
-        for i in range(3):
-            key = get_random_bytes(16)
-            cipher = AES.new(key, AES.MODE_CBC,b"0" * 16)
-            message = self.peer.aes_encrypt(message,cipher)
-            self.peer.log(message)
-            keys.append(key)
-
-        for i in range(3):
-            decipher = AES.new(keys[i], AES.MODE_CBC,b"0" * 16)
-            message = self.peer.aes_decrypt(message,decipher)
-            self.peer.log(message)
-        return
-
         address = self.get_address_from_selection(0)
-        sock = self.peer.get_peer_socket(address)
-        message_cell = self.peer.create_message_cell("SATOSHI","Hello",self.circuit)
-        message_cell.log()
-        return
-
-        for address in self.circuit:
-            self.peer.log(address)
-            self.peer.log(self.peer.get_peer_publickey(address))
-            message = self.peer.encrypt_with_publickey(message,self.peer.get_peer_publickey(address))
-            self.peer.log(len(message))
-
-        self.peer.log(message)
-        self.peer.log(self.circuit)
-
-        address = self.get_address_from_selection(0)
-        sock = self.peer.get_peers_sockets()[address]
-        self.peer.send_message("SATOSHI",message,sock)
+        self.peer.create_circuit("satoshi",address)
 
     def ping(self):
         address = self.get_address_from_selection(0)
