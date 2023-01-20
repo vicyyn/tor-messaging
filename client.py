@@ -2,6 +2,7 @@
 
 import tkinter as tk
 import tkinter.ttk as ttk
+from cell import Cell
 from logger import Logger
 from peer import Peer
 from Crypto.Cipher import AES
@@ -38,13 +39,13 @@ class Client:
         ping_button.pack(side="left", padx=5, pady=5)
         send_button = tk.Button(buttons_frame, text="Send Message", command=self.send_message)
         send_button.pack(side="left", padx=5, pady=5)
-        init_button = tk.Button(buttons_frame, text="Extend Circuit" , command=self.extend)
-        init_button.pack(side="left", padx=5, pady=5)
-        init_button = tk.Button(buttons_frame, text="Initialize Circuit" , command=self.create_circuit)
+        init_button = tk.Button(buttons_frame, text="Add to Circuit" , command=self.create_circuit)
         init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
+
+        self.circuit = []
 
         treeview = ttk.Treeview(window)
         treeview["columns"] = ("peer_address", "ip")
@@ -71,27 +72,23 @@ class Client:
         self.log_text.see("end")
         self.refresh_gui()
 
-    def extend(self):
-        address = self.get_address_from_selection(0)
-        sock = self.peer.get_peer_socket(address)
-        self.peer.extend("satoshi",sock,address)
-
     def create_circuit(self):
         address = self.get_address_from_selection(0)
+        self.circuit.append(address)
         self.peer.create_circuit("satoshi",address)
+        self.peer.log(self.circuit)
     
     def send_message(self):
         address = self.get_address_from_selection(0)
-        sock = self.peer.get_peers_sockets()[address]
-
+        sock = self.peer.get_peers_sockets()[self.circuit[0]]
         message = b"Hello World!"
+
         for key in reversed(self.peer.layers):
             aes = self.peer.get_aes_from_key(key)
             message = aes.encrypt(pad(message,16))
-            self.log("encode")
-            self.log(message)
 
-        self.peer.send_message("satoshi",message,sock)
+        cell = Cell("NA","message", {"message":message,"next":self.circuit[1:] + [address]} )
+        self.peer.send_cell(cell,sock)
 
     def ping(self):
         address = self.get_address_from_selection(0)

@@ -14,15 +14,11 @@
 
 - [x] diffie hellman key exchange
 
-- [ ] create circuit
+- [x] create circuit
 
-- [ ] onion encryption
+- [x] onion encryption
 
 - [ ] client messaging in the network
-
-- [ ] message propagation in the network
-
-- [ ] tor-like message propagation
 
 ### Communication between nodes
 

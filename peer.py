@@ -7,6 +7,7 @@ import uuid
 import datetime
 
 from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding, dh
 from cryptography.hazmat.primitives import serialization, hashes
@@ -125,8 +126,8 @@ class Peer:
                     info=b"handshake data",
                     backend=default_backend()
                 )
-                key = kdf.derive(self.shared_secret)
-                self.layers.append(key)
+                self.key = kdf.derive(self.shared_secret)
+                self.layers.append(self.key)
             case "created":
                 serialized_dh_key = data["dh_key"]
                 dh_key = serialization.load_pem_public_key(
@@ -141,8 +142,8 @@ class Peer:
                     info=b"handshake data",
                     backend=default_backend()
                 )
-                key = kdf.derive(self.shared_secret)
-                self.layers.append(key)
+                self.key = kdf.derive(self.shared_secret)
+                self.layers.append(self.key)
                 self.log(self.layers)
             case "peers":
                 for peer in data:
@@ -159,23 +160,17 @@ class Peer:
             case "pong":
                 self.log("received pong : " , cell.get_data())
             case "message":
-                return
-                self.log(" - - - - received message - - - -")
-                message = self.privatekey.decrypt(data["message"],padding=padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
-                    )
-                ).decode()
-                if circuit_id not in self.get_circuits():
-                    self.log(" - - - - end - - - -")
-                    self.log(message)
+                addresses = data["next"]
+                if len(addresses) == 0:
+                    self.log("received ",data["message"].decode())
                 else:
-                    self.send_message(circuit_id,{"message":message}, self.get_peer_socket(self.get_circuit_address(circuit_id)))
-
-    def extend(self,circuit_id,sock,address):
-        cell = Cell(circuit_id,"extend",{"next":address})
-        self.send_cell(cell,sock)
+                    aes = self.get_aes_from_key(self.key)
+                    decrypted = unpad(aes.decrypt(data["message"]),16)
+                    self.log("received ",decrypted.decode())
+                    address = addresses[0]
+                    cell = Cell("NA","message",{"message":decrypted,"next":addresses[1:]})
+                    sock = self.get_peer_socket(address)
+                    self.send_cell(cell,sock)
 
     def create_circuit(self,circuit_id,address):
         serialized_public_key = self.diffie_public_key.public_bytes(
@@ -282,5 +277,5 @@ class Peer:
 if __name__ == "__main__":
     number = int(input("how many peers do you want to start (the bigger the more decetralized the network will be):\n"))
     for i in range(number):
-        Peer("localhost",8000,3,None)
+        Peer("localhost",8000,20,None)
         time.sleep(0.5)
