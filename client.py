@@ -43,6 +43,8 @@ class Client:
         init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
+        self.message_input = tk.Entry(buttons_frame)
+        self.message_input.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
 
         self.circuit = []
@@ -81,7 +83,7 @@ class Client:
     def send_message(self):
         address = self.get_address_from_selection(0)
         sock = self.peer.get_peers_sockets()[self.circuit[0]]
-        message = b"Hello World!"
+        message = bytes(self.message_input.get(),'utf-8')
 
         for key in reversed(self.peer.layers):
             aes = self.peer.get_aes_from_key(key)

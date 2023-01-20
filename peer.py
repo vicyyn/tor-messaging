@@ -166,7 +166,7 @@ class Peer:
                 else:
                     aes = self.get_aes_from_key(self.key)
                     decrypted = unpad(aes.decrypt(data["message"]),16)
-                    self.log("received ",decrypted.decode())
+                    self.log("received ",decrypted)
                     address = addresses[0]
                     cell = Cell("NA","message",{"message":decrypted,"next":addresses[1:]})
                     sock = self.get_peer_socket(address)
