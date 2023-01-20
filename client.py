@@ -84,7 +84,7 @@ class Client:
         address = self.get_address_from_selection(0)
         sock = self.peer.get_peers_sockets()[address]
 
-        message = b"Hello!"
+        message = b"Hello World!"
         for key in reversed(self.peer.layers):
             aes = self.peer.get_aes_from_key(key)
             message = aes.encrypt(pad(message,16))
