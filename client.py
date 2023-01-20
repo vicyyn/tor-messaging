@@ -6,10 +6,13 @@ from logger import Logger
 from peer import Peer
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
 
 
 class Client:
     def __init__(self) -> None:
+        self.layers = []
+
         window = tk.Tk()
         window.geometry("800x400")
         window.title("tor-messaging client")
@@ -33,14 +36,15 @@ class Client:
         buttons_frame = tk.Frame(window)
         ping_button = tk.Button(buttons_frame, text="Ping",command=self.ping)
         ping_button.pack(side="left", padx=5, pady=5)
-        send_button = tk.Button(buttons_frame, text="Send message", command=self.send_message)
+        send_button = tk.Button(buttons_frame, text="Send Message", command=self.send_message)
         send_button.pack(side="left", padx=5, pady=5)
-        #init_button = tk.Button(buttons_frame, text="Initialize circuit" , command=self.initialize_circuit)
-        #init_button.pack(side="left", padx=5, pady=5)
+        init_button = tk.Button(buttons_frame, text="Extend Circuit" , command=self.extend)
+        init_button.pack(side="left", padx=5, pady=5)
+        init_button = tk.Button(buttons_frame, text="Initialize Circuit" , command=self.create_circuit)
+        init_button.pack(side="left", padx=5, pady=5)
         refresh_button = tk.Button(buttons_frame, text="Refresh", command=self.refresh)
         refresh_button.pack(side="left", padx=5, pady=5)
         buttons_frame.pack(side="top",fill="x")
-
 
         treeview = ttk.Treeview(window)
         treeview["columns"] = ("peer_address", "ip")
@@ -62,20 +66,32 @@ class Client:
 
     def log(self,message):
         self.log_text.configure(state="normal")
-        self.log_text.insert("end", message + "\n")
+        self.log_text.insert("end", str(message) + "\n")
         self.log_text.configure(state="disabled")
         self.log_text.see("end")
         self.refresh_gui()
 
-    #def initialize_circuit(self):
-    #    addresses = self.get_addresses_from_selection()
-    #    self.circuit = addresses
-    #    self.peer.log(addresses)
-    #    self.peer.initialize_circuit("SATOSHI",{"next":addresses})
+    def extend(self):
+        address = self.get_address_from_selection(0)
+        sock = self.peer.get_peer_socket(address)
+        self.peer.extend("satoshi",sock,address)
+
+    def create_circuit(self):
+        address = self.get_address_from_selection(0)
+        self.peer.create_circuit("satoshi",address)
     
     def send_message(self):
         address = self.get_address_from_selection(0)
-        self.peer.create_circuit("satoshi",address)
+        sock = self.peer.get_peers_sockets()[address]
+
+        message = b"Hello!"
+        for key in reversed(self.peer.layers):
+            aes = self.peer.get_aes_from_key(key)
+            message = aes.encrypt(pad(message,16))
+            self.log("encode")
+            self.log(message)
+
+        self.peer.send_message("satoshi",message,sock)
 
     def ping(self):
         address = self.get_address_from_selection(0)
@@ -123,36 +139,6 @@ class Client:
             return address
         except:
             return None
-
-    # def handle_input(self,request):
-    #         pattern = r"^\(([^,]+),([^)]+)\) : (.*)$"
-    #         match = re.search(pattern, request)
-    #         if not match:
-    #             return
-    #         message = match.group(1)
-    #         address = match.group(2)
-    #         data = match.group(3)
-
-    #         if message == "peers":
-    #             print(self.peers_publickeys)
-    #             print(self.peers_sockets)
-    #         elif message == "ping":
-    #             for address in self.peers_sockets:
-    #                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-    #                 self.send_request(self.peers_sockets[address],"ping",{"time":current_time})
-    #                 print("pinged:",address)
-    #         elif message == "message":
-    #             address = address if address in self.peers_sockets else self.get_random_address()
-    #             print(address)
-    #             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-    #             self.send_request(self.peers_sockets[address],"message",{"time":current_time,"message":self.peers_publickeys[address].encrypt(request.encode(),
-    #                 padding.OAEP(
-    #                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
-    #                     algorithm=hashes.SHA256(),
-    #                     label=None
-    #                 ))
-    #             })
-    #             print("messaged:",address)
 
 if __name__ == "__main__":
     Client()

@@ -6,17 +6,14 @@ import time
 import uuid
 import datetime
 
-from Crypto.Util.Padding import pad, unpad
 from Crypto.Cipher import AES
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding, dh
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cell import CELL_SIZE, Cell
 from Crypto.Random import get_random_bytes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.padding import PKCS7
 
 PRIME = 11357020966776587981982482236107054449768639171418181370141979577882025157926273180004852165552677265044124657616972447610631152659969189926051683197612703
 
@@ -27,7 +24,8 @@ class Peer:
         self.peers_sockets = {}
         self.peers_publickeys = {}
         self.socknames = set()
-        self.circuits = {}
+        self.layers = []
+        self.next = None
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 0))
@@ -95,13 +93,17 @@ class Peer:
             else:
                 break
 
+    def get_aes_from_key(self,key):
+        return AES.new(key, AES.MODE_CBC, b"0"*16)
+
     def handle_cell(self,cell,sock):
         command = cell.get_command()
         data = cell.get_data()
         circuit_id = cell.get_circuit_id()
         match command:
-            # case "circuit":
-            #     self.initialize_circuit(circuit_id,data)
+            case "extend":
+                self.next = data["next"]
+                self.log(self.next)
             case "create":
                 serialized_dh_key = data["dh_key"]
                 dh_key = serialization.load_pem_public_key(
@@ -109,8 +111,6 @@ class Peer:
                     backend=default_backend()
                 )
                 self.shared_secret = self.diffie_private_key.exchange(dh_key)
-                self.log(self.shared_secret)
-
                 serialized_public_key = self.diffie_public_key.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -126,9 +126,7 @@ class Peer:
                     backend=default_backend()
                 )
                 key = kdf.derive(self.shared_secret)
-                # Create a PKCS7 padding object
-                self.cipher = AES.new(key, AES.MODE_CBC, b"0"*16)
-
+                self.layers.append(key)
             case "created":
                 serialized_dh_key = data["dh_key"]
                 dh_key = serialization.load_pem_public_key(
@@ -136,7 +134,6 @@ class Peer:
                     backend=default_backend()
                 )
                 self.shared_secret = self.diffie_private_key.exchange(dh_key)
-                self.log(self.shared_secret)
                 kdf = HKDF(
                     algorithm=hashes.SHA256(),
                     length=32,
@@ -145,10 +142,8 @@ class Peer:
                     backend=default_backend()
                 )
                 key = kdf.derive(self.shared_secret)
-                self.cipher = AES.new(key, AES.MODE_CBC, b"0"*16)
-                encrypted_data = self.cipher.encrypt(pad(b"Hello!",16))
-                self.send_message("satoshi",encrypted_data,sock)
-                self.log(encrypted_data)
+                self.layers.append(key)
+                self.log(self.layers)
             case "peers":
                 for peer in data:
                     if peer not in self.socknames:
@@ -164,9 +159,6 @@ class Peer:
             case "pong":
                 self.log("received pong : " , cell.get_data())
             case "message":
-                self.log(data["message"])
-                decrypted_data = unpad(self.cipher.decrypt(data["message"]),16)
-                self.log(decrypted_data)
                 return
                 self.log(" - - - - received message - - - -")
                 message = self.privatekey.decrypt(data["message"],padding=padding.OAEP(
@@ -181,15 +173,9 @@ class Peer:
                 else:
                     self.send_message(circuit_id,{"message":message}, self.get_peer_socket(self.get_circuit_address(circuit_id)))
 
-    # def initialize_circuit(self,circuit_id,data):
-    #     self.log(data)
-    #     next_peer_address = data["next"][0]
-    #     self.circuits[circuit_id] = next_peer_address
-    #     remaining_peers_addresses = data["next"][1:]
-    #     if len(remaining_peers_addresses) > 0:
-    #         cell = Cell(circuit_id,"circuit",{"next":remaining_peers_addresses})
-    #         self.send_cell(cell,self.get_peer_socket(next_peer_address))
-    #     self.log(self.circuits)
+    def extend(self,circuit_id,sock,address):
+        cell = Cell(circuit_id,"extend",{"next":address})
+        self.send_cell(cell,sock)
 
     def create_circuit(self,circuit_id,address):
         serialized_public_key = self.diffie_public_key.public_bytes(
@@ -222,7 +208,6 @@ class Peer:
     def aes_decrypt(self,message,decipher):
         decrypted_message = decipher.decrypt(message)
         return decrypted_message
-
 
     def create_message_cell(self,circuit_id,message,addresses):
        key = get_random_bytes(16)
@@ -283,12 +268,6 @@ class Peer:
 
     def get_peer_publickey(self,address):
         return self.peers_publickeys[address]
-
-    def get_circuits(self):
-        return self.circuits
-
-    def get_circuit_address(self,circuit):
-        return self.circuits[circuit]
 
     def log(self,*messages):
         message = ""
